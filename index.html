@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Auditoría de Stock</title>
+  <title>Auditoría de Inventario</title>
   <!-- Motor de escaneo de código de barras de alto rendimiento -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
@@ -62,48 +62,47 @@
 </div>
 
 <script>
-  // Endpoint de Google Apps Script
+  // Endpoint de Google Apps Script (Reemplazar con tu URL)
   const API_ENDPOINT = "URL_DE_TU_APPS_SCRIPT_AQUI";
 
   let html5QrcodeScanner;
 
   function onScanSuccess(decodedText, decodedResult) {
-    // Si el scanner lee el código de barras
+    // Asigna el texto decodificado al input
     document.getElementById('materialCode').value = decodedText;
     
-    // Feedback háptico (vibración en el smartphone al leer con éxito)
+    // Feedback háptico (vibración en el smartphone)
     if (navigator.vibrate) navigator.vibrate(100);
 
-    // Opcional: pausar temporalmente el escáner tras lectura
+    // Pausar el escáner temporalmente
     html5QrcodeScanner.pause(true);
     setTimeout(() => html5QrcodeScanner.resume(), 3000);
   }
 
-  // Inicializar lector utilizando EXACTAMENTE tu estructura base
+  // Inicialización de la cámara con resolución HD y sin límite de formatos
   html5QrcodeScanner = new Html5QrcodeScanner(
     "reader", 
     { 
       fps: 15, 
       qrbox: { width: 300, height: 120 },
-      formatsToSupport: [ 
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.CODE_39 // Añadido para la etiqueta Sandvik
-      ]
+      videoConstraints: {
+        facingMode: "environment", // Fuerza la cámara trasera
+        width: { min: 640, ideal: 1280, max: 1920 }, // Exige resolución HD
+        height: { min: 480, ideal: 720, max: 1080 }
+      }
     },
     /* verbose= */ false
   );
   html5QrcodeScanner.render(onScanSuccess);
 
-  // Manejo del envío
+  // Manejo del envío a la base de datos
   document.getElementById('stockForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
     submitBtn.innerText = "Procesando...";
 
-    // Estructura URLSearchParams para evitar problemas de CORS en Google Apps Script
+    // Estructura URLSearchParams requerida por Apps Script
     const payload = new URLSearchParams();
     payload.append('codigo', document.getElementById('materialCode').value);
     payload.append('cantidad', document.getElementById('quantity').value);
@@ -111,7 +110,6 @@
     payload.append('auditor', document.getElementById('user').value);
 
     try {
-      // Petición a Google Sheets
       const res = await fetch(API_ENDPOINT, {
         method: "POST",
         body: payload
@@ -120,7 +118,7 @@
       console.log("Transacción registrada");
       alert(`Conteo registrado correctamente para material: ${document.getElementById('materialCode').value}`);
       
-      // Limpiar formulario para la siguiente lectura (solo borramos código y cantidad)
+      // Limpieza parcial para agilizar el siguiente escaneo
       document.getElementById('materialCode').value = "";
       document.getElementById('quantity').value = "";
     } catch (err) {
