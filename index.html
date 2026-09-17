@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Auditoría de Inventario v1.1.0</title>
+  <title>Auditoría de Inventario v1.1.1</title>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
@@ -32,7 +32,7 @@
 <body>
 
 <div class="container">
-  <h2>Auditoría de Inventario <span class="version">v1.1.0</span></h2>
+  <h2>Auditoría de Inventario <span class="version">v1.1.1</span></h2>
   <div id="reader"></div>
 
   <form id="stockForm">
@@ -61,7 +61,7 @@
 </div>
 
 <script>
-  // Variable corregida con comillas dobles
+  // Variable URL con las comillas obligatorias
   const API_ENDPOINT = "https://script.google.com/a/macros/holcim.com/s/AKfycbzWtYts7KtUO4GfiSX6Z27ktC7dHOS5LILInz9uZ1Wqr1zVjyymxG5F7MYrRnaaccA/exec";
 
   let html5QrcodeScanner;
@@ -105,18 +105,20 @@
     payload.append('auditor', document.getElementById('user').value);
 
     try {
-      const res = await fetch(API_ENDPOINT, {
+      // Inyección del mode: "no-cors" para evadir el bloqueo del navegador
+      await fetch(API_ENDPOINT, {
         method: "POST",
+        mode: "no-cors",
         body: payload
       });
       
-      console.log("Transacción registrada");
-      alert(`Conteo registrado correctamente para material: ${document.getElementById('materialCode').value}`);
+      console.log("Petición enviada");
+      alert(`Conteo registrado para material: ${document.getElementById('materialCode').value}`);
       
       document.getElementById('materialCode').value = "";
       document.getElementById('quantity').value = "";
     } catch (err) {
-      alert("Error al sincronizar con el servidor de Google Sheets.");
+      alert("Error crítico de red local.");
       console.error(err);
     } finally {
       submitBtn.disabled = false;
