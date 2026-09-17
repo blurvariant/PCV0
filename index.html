@@ -1,99 +1,141 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Inventario</title>
-    <!-- Librería para el escáner -->
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        body { font-family: Arial, sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-        #reader { width: 100%; margin-bottom: 20px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="number"] { width: 100%; padding: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; background-color: #007bff; color: white; border: none; font-size: 16px; cursor: pointer; }
-        button:hover { background-color: #0056b3; }
-        #status { margin-top: 15px; font-weight: bold; text-align: center; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Auditoría de Stock - Conteo Físico</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #0f172a;
+      --accent: #059669; /* Verde auditoría */
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --border: #cbd5e1;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; }
+    .container { width: 100%; max-width: 480px; background: var(--card); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; }
+    h2 { margin-top: 0; font-size: 1.25rem; text-align: center; color: var(--primary); }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 16px; background: #000; }
+    .form-group { margin-bottom: 14px; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #64748b; }
+    input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+    input:read-only { background-color: #f1f5f9; color: #475569; font-weight: bold; }
+    .btn { width: 100%; padding: 12px; font-size: 1rem; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+    .btn-submit { background-color: var(--accent); color: white; margin-top: 10px; }
+    .btn-submit:disabled { background-color: #94a3b8; }
+    #status { margin-top: 10px; font-size: 0.9rem; text-align: center; font-weight: bold; }
+  </style>
 </head>
 <body>
 
-    <h2>Auditoría de Repuestos</h2>
-    
-    <!-- Contenedor de la cámara -->
-    <div id="reader"></div>
+<div class="container">
+  <h2>Conteo de Inventario (Cíclico)</h2>
+  <div id="reader"></div>
 
+  <form id="auditForm">
     <div class="form-group">
-        <label for="codigo">Código de Repuesto:</label>
-        <input type="text" id="codigo" readonly placeholder="Se autocompletará al escanear">
+      <label for="materialCode">Material (SKU SAP)</label>
+      <input type="text" id="materialCode" placeholder="Escanea la etiqueta del repuesto..." readonly required>
     </div>
 
     <div class="form-group">
-        <label for="cantidad">Cantidad Contada:</label>
-        <input type="number" id="cantidad" placeholder="Ingrese el recuento físico">
+      <label for="countedQuantity">Cantidad Física Contada</label>
+      <!-- Se elimina el value="1" para forzar al auditor a tipear lo que cuenta y evitar sesgos de confirmación -->
+      <input type="number" id="countedQuantity" min="0" step="0.01" required placeholder="Ej: 15">
     </div>
 
-    <button id="enviarBtn" onclick="enviarDatos()">Guardar Registro</button>
+    <div class="form-group">
+      <label for="location">Ubicación / Estante (Opcional)</label>
+      <input type="text" id="location" placeholder="Ej: A-12-B">
+    </div>
+
+    <div class="form-group">
+      <label for="auditor">Auditor (Legajo / Nombre)</label>
+      <input type="text" id="auditor" required>
+    </div>
+
+    <button type="submit" class="btn btn-submit" id="submitBtn">Registrar Conteo</button>
     <div id="status"></div>
+  </form>
+</div>
 
-    <script>
-        // Inicializar el escáner
-        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: {width: 250, height: 100} }, false);
+<script>
+  // URL del Web App de Google Apps Script generada en pasos anteriores
+  const SCRIPT_URL = https://script.google.com/macros/s/AKfycbzsM_gBkQ6jG-vyiRWBVDnJBI9haNYj5YBUyysVdkUC3FYlX07QYu4zISL0YS4-mtae/exec; 
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // Rellenar el input con el código escaneado
-            document.getElementById('codigo').value = decodedText;
-            
-            // Pausar escáner para evitar lecturas múltiples
-            html5QrcodeScanner.pause(true);
-            document.getElementById('status').innerText = "Código detectado. Ingrese cantidad.";
-            document.getElementById('status').style.color = "green";
-        }
+  let html5QrcodeScanner;
 
-        html5QrcodeScanner.render(onScanSuccess);
+  function onScanSuccess(decodedText, decodedResult) {
+    document.getElementById('materialCode').value = decodedText;
+    
+    if (navigator.vibrate) navigator.vibrate(100);
 
-        // Función para enviar datos a Google Sheets
-        function enviarDatos() {
-            const codigo = document.getElementById('codigo').value;
-            const cantidad = document.getElementById('cantidad').value;
-            const statusDiv = document.getElementById('status');
-            const urlAppScript = https://script.google.com/macros/s/AKfycbzsM_gBkQ6jG-vyiRWBVDnJBI9haNYj5YBUyysVdkUC3FYlX07QYu4zISL0YS4-mtae/exec; // <-- REEMPLAZAR AQUÍ
+    html5QrcodeScanner.pause(true);
+    document.getElementById('status').innerText = "Código detectado. Ingrese cantidad.";
+    document.getElementById('status').style.color = "#059669";
+  }
 
-            if(!codigo || !cantidad) {
-                statusDiv.innerText = "Error: Escanee un código e ingrese una cantidad.";
-                statusDiv.style.color = "red";
-                return;
-            }
+  html5QrcodeScanner = new Html5QrcodeScanner(
+    "reader", 
+    { 
+      fps: 15, 
+      qrbox: { width: 300, height: 120 }, 
+      formatsToSupport: [ 
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.QR_CODE 
+      ]
+    },
+    false
+  );
+  html5QrcodeScanner.render(onScanSuccess);
 
-            statusDiv.innerText = "Enviando datos...";
-            statusDiv.style.color = "blue";
+  document.getElementById('auditForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = document.getElementById('submitBtn');
+    const statusDiv = document.getElementById('status');
+    
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Registrando en Sheets...";
+    statusDiv.innerText = "";
 
-            // Preparar datos en formato URL-encoded para evitar problemas de CORS en GAS
-            const formData = new URLSearchParams();
-            formData.append('codigo', codigo);
-            formData.append('cantidad', cantidad);
+    // Se utiliza URLSearchParams para compatibilidad nativa con doPost(e) de Apps Script (evita errores CORS)
+    const payload = new URLSearchParams();
+    payload.append('codigo', document.getElementById('materialCode').value);
+    payload.append('cantidad', document.getElementById('countedQuantity').value);
+    payload.append('ubicacion', document.getElementById('location').value);
+    payload.append('auditor', document.getElementById('auditor').value);
 
-            fetch(urlAppScript, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(data => {
-                statusDiv.innerText = "Registro guardado exitosamente.";
-                statusDiv.style.color = "green";
-                
-                // Limpiar campos y reanudar cámara
-                document.getElementById('codigo').value = '';
-                document.getElementById('cantidad').value = '';
-                html5QrcodeScanner.resume();
-            })
-            .catch(error => {
-                statusDiv.innerText = "Error de conexión.";
-                statusDiv.style.color = "red";
-                console.error('Error:', error);
-            });
-        }
-    </script>
+    try {
+      const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        body: payload
+      });
+      
+      const resText = await res.text();
+      
+      statusDiv.innerText = "Conteo guardado exitosamente.";
+      statusDiv.style.color = "#059669";
+      
+      // Limpiar campos críticos para evitar doble carga
+      document.getElementById('materialCode').value = "";
+      document.getElementById('countedQuantity').value = "";
+      // No limpiamos 'location' ni 'auditor' para agilizar conteos sucesivos en el mismo estante
+      
+      setTimeout(() => html5QrcodeScanner.resume(), 1000);
+
+    } catch (err) {
+      statusDiv.innerText = "Error de conexión. Reintente.";
+      statusDiv.style.color = "red";
+      console.error(err);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = "Registrar Conteo";
+    }
+  });
+</script>
 </body>
 </html>
