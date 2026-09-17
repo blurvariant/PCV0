@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Auditoría de Inventario</title>
-  <!-- Motor de escaneo de código de barras de alto rendimiento -->
+  <title>Auditoría de Inventario v1.1.0</title>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
@@ -19,27 +18,28 @@
     body { background-color: var(--bg); color: var(--text); margin: 0; padding: 16px; display: flex; flex-direction: column; align-items: center; }
     .container { width: 100%; max-width: 480px; background: var(--card); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; }
     h2 { margin-top: 0; font-size: 1.25rem; text-align: center; color: var(--primary); }
+    .version { font-size: 0.8rem; color: #64748b; font-weight: normal; }
     #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 16px; background: #000; }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #64748b; }
-    input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
-    input:read-only { background-color: #f1f5f9; color: #475569; font-weight: bold; }
+    input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+    input:focus { outline: 2px solid var(--accent); border-color: transparent; }
     .btn { width: 100%; padding: 12px; font-size: 1rem; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
     .btn-submit { background-color: var(--accent); color: white; margin-top: 10px; }
     .btn-submit:disabled { background-color: #94a3b8; }
-    .badge { display: inline-block; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; background: #e2e8f0; margin-bottom: 12px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Auditoría de Inventario</h2>
+  <h2>Auditoría de Inventario <span class="version">v1.1.0</span></h2>
   <div id="reader"></div>
 
   <form id="stockForm">
     <div class="form-group">
       <label for="materialCode">Material (SKU SAP)</label>
-      <input type="text" id="materialCode" placeholder="Escanea una etiqueta..." readonly required>
+      <!-- Se quitó el atributo readonly para permitir carga manual -->
+      <input type="text" id="materialCode" placeholder="Escanea o tipea el código..." required>
     </div>
 
     <div class="form-group">
@@ -62,16 +62,19 @@
 </div>
 
 <script>
-  // Endpoint de Google Apps Script (Reemplazar con tu URL)
+  // ATENCIÓN: Reemplaza esto con tu URL real de Google Apps Script
   const API_ENDPOINT = "URL_DE_TU_APPS_SCRIPT_AQUI";
 
   let html5QrcodeScanner;
 
   function onScanSuccess(decodedText, decodedResult) {
-    // Asigna el texto decodificado al input
+    // Filtro para ignorar ruidos ópticos de menos de 3 caracteres
+    if (decodedText.length < 3) return;
+
+    // Asigna el texto decodificado al input (ahora editable por el usuario)
     document.getElementById('materialCode').value = decodedText;
     
-    // Feedback háptico (vibración en el smartphone)
+    // Feedback háptico
     if (navigator.vibrate) navigator.vibrate(100);
 
     // Pausar el escáner temporalmente
@@ -79,17 +82,18 @@
     setTimeout(() => html5QrcodeScanner.resume(), 3000);
   }
 
-  // Inicialización de la cámara con resolución HD y sin límite de formatos
+  // Inicialización universal y en alta resolución
   html5QrcodeScanner = new Html5QrcodeScanner(
     "reader", 
     { 
       fps: 15, 
       qrbox: { width: 300, height: 120 },
       videoConstraints: {
-        facingMode: "environment", // Fuerza la cámara trasera
-        width: { min: 640, ideal: 1280, max: 1920 }, // Exige resolución HD
+        facingMode: "environment",
+        width: { min: 640, ideal: 1280, max: 1920 },
         height: { min: 480, ideal: 720, max: 1080 }
       }
+      // Se eliminó la restricción de formatos para leer todo tipo de etiquetas
     },
     /* verbose= */ false
   );
@@ -102,7 +106,6 @@
     submitBtn.disabled = true;
     submitBtn.innerText = "Procesando...";
 
-    // Estructura URLSearchParams requerida por Apps Script
     const payload = new URLSearchParams();
     payload.append('codigo', document.getElementById('materialCode').value);
     payload.append('cantidad', document.getElementById('quantity').value);
@@ -118,7 +121,7 @@
       console.log("Transacción registrada");
       alert(`Conteo registrado correctamente para material: ${document.getElementById('materialCode').value}`);
       
-      // Limpieza parcial para agilizar el siguiente escaneo
+      // Limpieza para agilizar el siguiente escaneo
       document.getElementById('materialCode').value = "";
       document.getElementById('quantity').value = "";
     } catch (err) {
