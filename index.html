@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Control de Stock - Auditoría</title>
-  <!-- Motor de escaneo de código de barras -->
+  <title>Auditoría de Stock</title>
+  <!-- Motor de escaneo de código de barras de alto rendimiento -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
       --primary: #0f172a;
-      --accent: #059669; /* Verde para auditoría */
+      --accent: #2563eb;
       --bg: #f8fafc;
       --card: #ffffff;
       --text: #1e293b;
@@ -22,18 +22,18 @@
     #reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 16px; background: #000; }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; color: #64748b; }
-    input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
+    input, select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 1rem; }
     input:read-only { background-color: #f1f5f9; color: #475569; font-weight: bold; }
     .btn { width: 100%; padding: 12px; font-size: 1rem; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; }
     .btn-submit { background-color: var(--accent); color: white; margin-top: 10px; }
     .btn-submit:disabled { background-color: #94a3b8; }
-    #status { margin-top: 10px; font-size: 0.9rem; text-align: center; font-weight: bold; }
+    .badge { display: inline-block; padding: 2px 8px; font-size: 0.75rem; border-radius: 4px; background: #e2e8f0; margin-bottom: 12px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Auditoría de Góndola</h2>
+  <h2>Auditoría de Inventario</h2>
   <div id="reader"></div>
 
   <form id="stockForm">
@@ -43,13 +43,13 @@
     </div>
 
     <div class="form-group">
-      <label for="quantity">Cantidad Contada</label>
-      <input type="number" id="quantity" min="0" step="0.01" placeholder="Ej: 15" required>
+      <label for="quantity">Cantidad Contada (Física)</label>
+      <input type="number" id="quantity" min="0" step="0.01" value="" placeholder="Ej: 15" required>
     </div>
 
     <div class="form-group">
-      <label for="location">Ubicación (Opcional)</label>
-      <input type="text" id="location" placeholder="Ej: A-12">
+      <label for="location">Ubicación / Estante</label>
+      <input type="text" id="location" placeholder="Ej: A-12-B">
     </div>
 
     <div class="form-group">
@@ -58,52 +58,52 @@
     </div>
 
     <button type="submit" class="btn btn-submit" id="submitBtn">Confirmar Conteo</button>
-    <div id="status"></div>
   </form>
 </div>
 
 <script>
-  // ATENCIÓN: Reemplaza esto con tu URL real de Google Apps Script
-  const SCRIPT_URL = https://script.google.com/macros/s/AKfycbzsM_gBkQ6jG-vyiRWBVDnJBI9haNYj5YBUyysVdkUC3FYlX07QYu4zISL0YS4-mtae/exec;
+  // Endpoint de Google Apps Script
+  const API_ENDPOINT = "URL_DE_TU_APPS_SCRIPT_AQUI";
 
   let html5QrcodeScanner;
 
   function onScanSuccess(decodedText, decodedResult) {
-    // Asigna el valor al input
+    // Si el scanner lee el código de barras
     document.getElementById('materialCode').value = decodedText;
     
-    // Feedback háptico
+    // Feedback háptico (vibración en el smartphone al leer con éxito)
     if (navigator.vibrate) navigator.vibrate(100);
 
-    // Pausar escáner para evitar lecturas dobles
+    // Opcional: pausar temporalmente el escáner tras lectura
     html5QrcodeScanner.pause(true);
-    document.getElementById('status').innerText = "Código detectado.";
-    document.getElementById('status').style.color = "#059669";
+    setTimeout(() => html5QrcodeScanner.resume(), 3000);
   }
 
-  // Inicialización directa (como en tu código que sí funcionó)
-  // Se eliminó la restricción de formatos para que lea la etiqueta Sandvik (Code 39/ITF)
+  // Inicializar lector utilizando EXACTAMENTE tu estructura base
   html5QrcodeScanner = new Html5QrcodeScanner(
     "reader", 
     { 
       fps: 15, 
-      qrbox: { width: 300, height: 120 } 
+      qrbox: { width: 300, height: 120 },
+      formatsToSupport: [ 
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_39 // Añadido para la etiqueta Sandvik
+      ]
     },
-    false
+    /* verbose= */ false
   );
   html5QrcodeScanner.render(onScanSuccess);
 
-  // Manejo del envío a Google Sheets
+  // Manejo del envío
   document.getElementById('stockForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
-    const statusDiv = document.getElementById('status');
-    
     submitBtn.disabled = true;
     submitBtn.innerText = "Procesando...";
-    statusDiv.innerText = "";
 
-    // Armar el paquete de datos para Apps Script
+    // Estructura URLSearchParams para evitar problemas de CORS en Google Apps Script
     const payload = new URLSearchParams();
     payload.append('codigo', document.getElementById('materialCode').value);
     payload.append('cantidad', document.getElementById('quantity').value);
@@ -111,30 +111,20 @@
     payload.append('auditor', document.getElementById('user').value);
 
     try {
-      // Envío real a Google Sheets
-      const res = await fetch(SCRIPT_URL, {
+      // Petición a Google Sheets
+      const res = await fetch(API_ENDPOINT, {
         method: "POST",
         body: payload
       });
       
-      const respuestaTexto = await res.text(); // Lee la respuesta del servidor
+      console.log("Transacción registrada");
+      alert(`Conteo registrado correctamente para material: ${document.getElementById('materialCode').value}`);
       
-      statusDiv.innerText = "Conteo guardado correctamente.";
-      statusDiv.style.color = "#059669";
-      
-      // Limpiar solo código y cantidad (deja ubicacion y usuario para agilizar)
+      // Limpiar formulario para la siguiente lectura (solo borramos código y cantidad)
       document.getElementById('materialCode').value = "";
       document.getElementById('quantity').value = "";
-      
-      // Reactivar cámara
-      setTimeout(() => {
-          html5QrcodeScanner.resume();
-          statusDiv.innerText = "";
-      }, 1500);
-
     } catch (err) {
-      statusDiv.innerText = "Error al sincronizar con Sheets.";
-      statusDiv.style.color = "red";
+      alert("Error al sincronizar con el servidor de Google Sheets.");
       console.error(err);
     } finally {
       submitBtn.disabled = false;
