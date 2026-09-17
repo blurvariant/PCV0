@@ -38,7 +38,6 @@
   <form id="stockForm">
     <div class="form-group">
       <label for="materialCode">Material (SKU SAP)</label>
-      <!-- Se quitó el atributo readonly para permitir carga manual -->
       <input type="text" id="materialCode" placeholder="Escanea o tipea el código..." required>
     </div>
 
@@ -62,27 +61,22 @@
 </div>
 
 <script>
-  // ATENCIÓN: Reemplaza esto con tu URL real de Google Apps Script
-  const API_ENDPOINT = https://script.google.com/a/macros/holcim.com/s/AKfycbzWtYts7KtUO4GfiSX6Z27ktC7dHOS5LILInz9uZ1Wqr1zVjyymxG5F7MYrRnaaccA/exec;
+  // Variable corregida con comillas dobles
+  const API_ENDPOINT = "https://script.google.com/a/macros/holcim.com/s/AKfycbzWtYts7KtUO4GfiSX6Z27ktC7dHOS5LILInz9uZ1Wqr1zVjyymxG5F7MYrRnaaccA/exec";
 
   let html5QrcodeScanner;
 
   function onScanSuccess(decodedText, decodedResult) {
-    // Filtro para ignorar ruidos ópticos de menos de 3 caracteres
     if (decodedText.length < 3) return;
 
-    // Asigna el texto decodificado al input (ahora editable por el usuario)
     document.getElementById('materialCode').value = decodedText;
     
-    // Feedback háptico
     if (navigator.vibrate) navigator.vibrate(100);
 
-    // Pausar el escáner temporalmente
     html5QrcodeScanner.pause(true);
     setTimeout(() => html5QrcodeScanner.resume(), 3000);
   }
 
-  // Inicialización universal y en alta resolución
   html5QrcodeScanner = new Html5QrcodeScanner(
     "reader", 
     { 
@@ -93,13 +87,11 @@
         width: { min: 640, ideal: 1280, max: 1920 },
         height: { min: 480, ideal: 720, max: 1080 }
       }
-      // Se eliminó la restricción de formatos para leer todo tipo de etiquetas
     },
     /* verbose= */ false
   );
   html5QrcodeScanner.render(onScanSuccess);
 
-  // Manejo del envío a la base de datos
   document.getElementById('stockForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
@@ -121,7 +113,6 @@
       console.log("Transacción registrada");
       alert(`Conteo registrado correctamente para material: ${document.getElementById('materialCode').value}`);
       
-      // Limpieza para agilizar el siguiente escaneo
       document.getElementById('materialCode').value = "";
       document.getElementById('quantity').value = "";
     } catch (err) {
