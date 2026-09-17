@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Auditoría de Stock - Conteo Físico</title>
+  <title>Control de Stock - Auditoría</title>
+  <!-- Motor de escaneo de código de barras -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
       --primary: #0f172a;
-      --accent: #059669; /* Verde auditoría */
+      --accent: #059669; /* Verde para auditoría */
       --bg: #f8fafc;
       --card: #ffffff;
       --text: #1e293b;
@@ -32,108 +33,112 @@
 <body>
 
 <div class="container">
-  <h2>Conteo de Inventario (Cíclico)</h2>
+  <h2>Auditoría de Góndola</h2>
   <div id="reader"></div>
 
-  <form id="auditForm">
+  <form id="stockForm">
     <div class="form-group">
       <label for="materialCode">Material (SKU SAP)</label>
-      <input type="text" id="materialCode" placeholder="Escanea la etiqueta del repuesto..." readonly required>
+      <input type="text" id="materialCode" placeholder="Escanea una etiqueta..." readonly required>
     </div>
 
     <div class="form-group">
-      <label for="countedQuantity">Cantidad Física Contada</label>
-      <!-- Se elimina el value="1" para forzar al auditor a tipear lo que cuenta y evitar sesgos de confirmación -->
-      <input type="number" id="countedQuantity" min="0" step="0.01" required placeholder="Ej: 15">
+      <label for="quantity">Cantidad Contada</label>
+      <input type="number" id="quantity" min="0" step="0.01" placeholder="Ej: 15" required>
     </div>
 
     <div class="form-group">
-      <label for="location">Ubicación / Estante (Opcional)</label>
-      <input type="text" id="location" placeholder="Ej: A-12-B">
+      <label for="location">Ubicación (Opcional)</label>
+      <input type="text" id="location" placeholder="Ej: A-12">
     </div>
 
     <div class="form-group">
-      <label for="auditor">Auditor (Legajo / Nombre)</label>
-      <input type="text" id="auditor" required>
+      <label for="user">Auditor</label>
+      <input type="text" id="user" placeholder="Legajo / Nombre" required>
     </div>
 
-    <button type="submit" class="btn btn-submit" id="submitBtn">Registrar Conteo</button>
+    <button type="submit" class="btn btn-submit" id="submitBtn">Confirmar Conteo</button>
     <div id="status"></div>
   </form>
 </div>
 
 <script>
-  // URL del Web App de Google Apps Script generada en pasos anteriores
-  const SCRIPT_URL = https://script.google.com/macros/s/AKfycbzsM_gBkQ6jG-vyiRWBVDnJBI9haNYj5YBUyysVdkUC3FYlX07QYu4zISL0YS4-mtae/exec; 
+  // ATENCIÓN: Reemplaza esto con tu URL real de Google Apps Script
+  const SCRIPT_URL = https://script.google.com/macros/s/AKfycbzsM_gBkQ6jG-vyiRWBVDnJBI9haNYj5YBUyysVdkUC3FYlX07QYu4zISL0YS4-mtae/exec;
 
   let html5QrcodeScanner;
 
   function onScanSuccess(decodedText, decodedResult) {
+    // Asigna el valor al input
     document.getElementById('materialCode').value = decodedText;
     
+    // Feedback háptico
     if (navigator.vibrate) navigator.vibrate(100);
 
+    // Pausar escáner para evitar lecturas dobles
     html5QrcodeScanner.pause(true);
-    document.getElementById('status').innerText = "Código detectado. Ingrese cantidad.";
+    document.getElementById('status').innerText = "Código detectado.";
     document.getElementById('status').style.color = "#059669";
   }
 
+  // Inicialización directa (como en tu código que sí funcionó)
+  // Se eliminó la restricción de formatos para que lea la etiqueta Sandvik (Code 39/ITF)
   html5QrcodeScanner = new Html5QrcodeScanner(
     "reader", 
     { 
       fps: 15, 
-      qrbox: { width: 300, height: 120 }, 
-      formatsToSupport: [ 
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.QR_CODE 
-      ]
+      qrbox: { width: 300, height: 120 } 
     },
     false
   );
   html5QrcodeScanner.render(onScanSuccess);
 
-  document.getElementById('auditForm').addEventListener('submit', async (e) => {
+  // Manejo del envío a Google Sheets
+  document.getElementById('stockForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const submitBtn = document.getElementById('submitBtn');
     const statusDiv = document.getElementById('status');
     
     submitBtn.disabled = true;
-    submitBtn.innerText = "Registrando en Sheets...";
+    submitBtn.innerText = "Procesando...";
     statusDiv.innerText = "";
 
-    // Se utiliza URLSearchParams para compatibilidad nativa con doPost(e) de Apps Script (evita errores CORS)
+    // Armar el paquete de datos para Apps Script
     const payload = new URLSearchParams();
     payload.append('codigo', document.getElementById('materialCode').value);
-    payload.append('cantidad', document.getElementById('countedQuantity').value);
+    payload.append('cantidad', document.getElementById('quantity').value);
     payload.append('ubicacion', document.getElementById('location').value);
-    payload.append('auditor', document.getElementById('auditor').value);
+    payload.append('auditor', document.getElementById('user').value);
 
     try {
+      // Envío real a Google Sheets
       const res = await fetch(SCRIPT_URL, {
         method: "POST",
         body: payload
       });
       
-      const resText = await res.text();
+      const respuestaTexto = await res.text(); // Lee la respuesta del servidor
       
-      statusDiv.innerText = "Conteo guardado exitosamente.";
+      statusDiv.innerText = "Conteo guardado correctamente.";
       statusDiv.style.color = "#059669";
       
-      // Limpiar campos críticos para evitar doble carga
+      // Limpiar solo código y cantidad (deja ubicacion y usuario para agilizar)
       document.getElementById('materialCode').value = "";
-      document.getElementById('countedQuantity').value = "";
-      // No limpiamos 'location' ni 'auditor' para agilizar conteos sucesivos en el mismo estante
+      document.getElementById('quantity').value = "";
       
-      setTimeout(() => html5QrcodeScanner.resume(), 1000);
+      // Reactivar cámara
+      setTimeout(() => {
+          html5QrcodeScanner.resume();
+          statusDiv.innerText = "";
+      }, 1500);
 
     } catch (err) {
-      statusDiv.innerText = "Error de conexión. Reintente.";
+      statusDiv.innerText = "Error al sincronizar con Sheets.";
       statusDiv.style.color = "red";
       console.error(err);
     } finally {
       submitBtn.disabled = false;
-      submitBtn.innerText = "Registrar Conteo";
+      submitBtn.innerText = "Confirmar Conteo";
     }
   });
 </script>
